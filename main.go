@@ -2,20 +2,28 @@ package main
 
 import (
 	"bee"
-	"fmt"
 	"net/http"
 )
 
 func main() {
-	engine := bee.New()
-	engine.GET("/", func(writer http.ResponseWriter, request *http.Request) {
-		writer.Write([]byte("URL.Path = " + request.URL.Path + "\n"))
+	r := bee.New()
+	r.GET("/", func(c *bee.Context) {
+		c.HTML(http.StatusOK, "<h1>Hello Gee</h1>")
 	})
-	engine.GET("/hello/*", func(writer http.ResponseWriter, request *http.Request) {
-		for k, v := range request.Header {
-			fmt.Fprintf(writer, "Header[%q] = %q\n", k, v)
-		}
+
+	r.GET("/hello", func(c *bee.Context) {
+		// expect /hello?name=geektutu
+		c.String(http.StatusOK, "hello %s, you're at %s\n", c.Query("name"), c.Path)
 	})
-	fmt.Println("Server is running at http://localhost:8000")
-	engine.Run(":8000")
+
+	r.GET("/hello/:name", func(c *bee.Context) {
+		// expect /hello/geektutu
+		c.String(http.StatusOK, "hello %s, you're at %s\n", c.Param("name"), c.Path)
+	})
+
+	r.GET("/assets/*filepath", func(c *bee.Context) {
+		c.JSON(http.StatusOK, bee.H{"filepath": c.Param("filepath")})
+	})
+
+	r.Run(":9999")
 }
