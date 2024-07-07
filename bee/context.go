@@ -15,6 +15,9 @@ type Context struct {
 	Method     string
 	Params     map[string]string
 	StatusCode int
+	//middleware
+	handlers []HandlerFunc
+	index    int
 }
 
 func (ctx *Context) Param(key string) string {
@@ -28,6 +31,15 @@ func newContext(writer http.ResponseWriter, req *http.Request) *Context {
 		Writer: writer,
 		Path:   req.URL.Path,
 		Method: req.Method,
+		index:  -1,
+	}
+}
+
+func (ctx *Context) Next() {
+	ctx.index++
+	s := len(ctx.handlers)
+	for ; ctx.index < s; ctx.index++ {
+		ctx.handlers[ctx.index](ctx)
 	}
 }
 
@@ -39,6 +51,12 @@ func (ctx *Context) PostForm(key string) string {
 // Query get the query value
 func (ctx *Context) Query(key string) string {
 	return ctx.Req.URL.Query().Get(key)
+}
+
+func (ctx *Context) Fail(code int, msg string) {
+	//prevent to call other handlers
+	ctx.index = len(ctx.handlers)
+	ctx.JSON(code, H{"message": msg})
 }
 
 // Status set the status code

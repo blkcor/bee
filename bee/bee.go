@@ -2,6 +2,7 @@ package bee
 
 import (
 	"net/http"
+	"strings"
 )
 
 // HandlerFunc define the handlerFunc used by bee
@@ -43,6 +44,10 @@ func (rg *RouterGroup) Group(prefix string) *RouterGroup {
 	return newGroup
 }
 
+func (rg *RouterGroup) Use(middlewares ...HandlerFunc) {
+	rg.middlewares = append(rg.middlewares, middlewares...)
+}
+
 // addRoute add route to the RouterGroup
 func (rg *RouterGroup) addRoute(method, comp string, handler HandlerFunc) {
 	//v1 := route.Group("/v1"); v1.GET("/hello") => comp is /hello and the actual pattern is /v1/hello
@@ -77,6 +82,13 @@ func (e *Engine) Run(addr string) (err error) {
 
 // impl the interface http.Handler
 func (e *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	var middlewares []HandlerFunc
+	for _, group := range e.groups {
+		if strings.HasPrefix(req.URL.Path, group.prefix) {
+			middlewares = append(middlewares, group.middlewares...)
+		}
+	}
 	context := newContext(w, req)
+	context.handlers = middlewares
 	e.router.handle(context)
 }
