@@ -24,6 +24,13 @@ func main() {
 	r.GET("/assets/*filepath", func(c *bee.Context) {
 		c.JSON(http.StatusOK, bee.H{"filepath": c.Param("filepath")})
 	})
-
+	v1 := r.Group("/v1")
+	{
+		v1.GET("/hello", func(context *bee.Context) {
+			context.JSON(http.StatusOK, bee.H{
+				"message": "hello",
+			})
+		})
+	}
 	r.Run(":9999")
 }
