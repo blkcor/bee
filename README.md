@@ -1,9 +1,10 @@
 # Bee Web Framework
-Bee is a golang toy web framework for building web applications, written by Go.
+Bee is blkcor golang toy web framework for building web applications, written by Go.
 Bee's core features include:
-- Routing
-- Templates
-- Utilities
-- Plugins
-- ...
+
+- [x] Routing
+- [x] Templates
+- [ ] Utilities
+- [ ] Plugins
+- [ ] ...
 

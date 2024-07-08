@@ -1,12 +1,13 @@
-package bee
+package middlewares
 
 import (
+	"bee"
 	"log"
 	"time"
 )
 
-func Logger() HandlerFunc {
-	return func(c *Context) {
+func Logger() bee.HandlerFunc {
+	return func(c *bee.Context) {
 		// Start timer
 		t := time.Now()
 		// Process request

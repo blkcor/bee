@@ -18,6 +18,7 @@ type Context struct {
 	//middleware
 	handlers []HandlerFunc
 	index    int
+	engine   *Engine
 }
 
 func (ctx *Context) Param(key string) string {
@@ -94,8 +95,10 @@ func (ctx *Context) Data(code int, data []byte) {
 }
 
 // HTML set the html response
-func (ctx *Context) HTML(code int, html string) {
+func (ctx *Context) HTML(code int, name string, data interface{}) {
 	ctx.SetHeader("Content-Type", "text/html")
 	ctx.Status(code)
-	ctx.Writer.Write([]byte(html))
+	if err := ctx.engine.htmlTemplates.ExecuteTemplate(ctx.Writer, name, data); err != nil {
+		ctx.Fail(500, err.Error())
+	}
 }
