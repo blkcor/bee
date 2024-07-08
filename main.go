@@ -22,6 +22,7 @@ func FormatAsDate(t time.Time) string {
 func main() {
 	r := bee.New()
 	r.Use(middlewares.Logger())
+	r.Use(middlewares.Recovery())
 	r.SetFuncMap(template.FuncMap{"FormatAsDate": FormatAsDate})
 	r.LoadHTMLGlob("templates/*")
 	r.Static("/assets", "./static")

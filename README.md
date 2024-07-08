@@ -4,7 +4,7 @@ Bee's core features include:
 
 - [x] Routing
 - [x] Templates
+- [x] Middleware
+- [x] Recover
 - [ ] Utilities
-- [ ] Plugins
-- [ ] ...
 
