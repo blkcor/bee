@@ -1,5 +1,5 @@
 # Bee Web Framework
-Bee is blkcor golang toy web framework for building web applications, written by Go.
+Bee is a golang toy web framework for building web applications, written by Go.
 Bee's core features include:
 
 - [x] Routing
@@ -7,4 +7,10 @@ Bee's core features include:
 - [x] Middleware
 - [x] Recover
 - [ ] Utilities
+
+# BeeCache
+BeeCache is a mini implement of groupCache.It implements the core features of the distribute cache, including:
+
+- [ ] Use LRU algorithm to disuse the record.
+- [ ] 
 
