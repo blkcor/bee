@@ -8,9 +8,10 @@ Bee's core features include:
 - [x] Recover
 - [ ] Utilities
 
+`updating and perfecting...`
+
 # BeeCache
 BeeCache is a mini implement of groupCache.It implements the core features of the distribute cache, including:
 
-- [ ] Use LRU algorithm to disuse the record.
-- [ ] 
+- [x] Use LRU algorithm to disuse the record.
 
