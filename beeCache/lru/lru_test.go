@@ -12,6 +12,7 @@ func (s String) Len() int {
 }
 
 func TestLru(t *testing.T) {
+	t.Log("testing TestLru......")
 	lru := New(int64(0), nil)
 	lru.Add("key1", String("1234"))
 	if v, ok := lru.Get("key1"); !ok || string(v.(String)) != "1234" {
@@ -23,6 +24,7 @@ func TestLru(t *testing.T) {
 }
 
 func TestRemoveoldest(t *testing.T) {
+	t.Log("testing TestRemoveoldest......")
 	k1, k2, k3 := "key1", "key2", "k3"
 	v1, v2, v3 := "value1", "value2", "v3"
 	cap := len(k1 + k2 + v1 + v2)
@@ -37,6 +39,7 @@ func TestRemoveoldest(t *testing.T) {
 }
 
 func TestOnEvicted(t *testing.T) {
+	t.Log("testing TestOnEvicted")
 	keys := make([]string, 0)
 	callback := func(key string, value Value) {
 		t.Logf("key %s is deleted, the value is %s", key, value)
