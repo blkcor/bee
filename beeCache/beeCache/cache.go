@@ -1,7 +1,7 @@
 package beeCache
 
 import (
-	"github.com/blkcor/beeCache/beeCache/lru"
+	"beeCache/lru"
 	"sync"
 )
 

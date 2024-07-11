@@ -14,6 +14,7 @@ type HTTPPool struct {
 	basePath string
 }
 
+// NewHTTPPool creates a new HTTPPool instance
 func NewHTTPPool(self string) *HTTPPool {
 	return &HTTPPool{
 		self:     self,
