@@ -16,4 +16,4 @@ BeeCache is a mini implement of groupCache.It implements the core features of th
 - [x] Use LRU algorithm to disuse the least visited record.
 - [x] Single-machine concurrent cache.
 - [x] Http Server.
-
+- [x] Consistent hashing algorithm.
