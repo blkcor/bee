@@ -34,7 +34,7 @@ func NewHTTPPool(self string) *HTTPPool {
 
 // Log info with server name
 func (p *HTTPPool) Log(format string, v ...interface{}) {
-	fmt.Printf("[Server %s] %s", p.self, fmt.Sprintf(format, v...))
+	fmt.Printf("[Server %s] %s\n", p.self, fmt.Sprintf(format, v...))
 }
 
 func (p *HTTPPool) ServeHTTP(w http.ResponseWriter, req *http.Request) {

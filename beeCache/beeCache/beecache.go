@@ -2,6 +2,7 @@ package beeCache
 
 import (
 	"fmt"
+	"github.com/blkcor/beeCache/singleFlight"
 	"log"
 	"sync"
 )
@@ -23,6 +24,7 @@ type Group struct {
 	getter    Getter
 	mainCache cache
 	peers     PeerPicker
+	loader    *singleFlight.Group
 }
 
 var (
@@ -41,6 +43,7 @@ func NewGroup(name string, cacheBytes int64, getter Getter) *Group {
 		name:      name,
 		getter:    getter,
 		mainCache: cache{cacheBytes: cacheBytes},
+		loader:    &singleFlight.Group{},
 	}
 	groups[name] = g
 	return g
@@ -76,16 +79,24 @@ func (g *Group) Get(key string) (ByteView, error) {
 	return g.load(key)
 }
 
-func (g *Group) load(key string) (ByteView, error) {
-	if g.peers != nil {
-		if peer, ok := g.peers.PickPeer(key); ok {
-			if v, err := g.getFromPeer(peer, key); err == nil {
-				return v, nil
+// load loads data for a key
+func (g *Group) load(key string) (value ByteView, err error) {
+	// loader 保证并发场景下对每个key只调用一次fn(防止缓存击穿)
+	view, err := g.loader.Do(key, func() (interface{}, error) {
+		if g.peers != nil {
+			if peer, ok := g.peers.PickPeer(key); ok {
+				if v, err := g.getFromPeer(peer, key); err == nil {
+					return v, nil
+				}
+				log.Println("[B	eeCache] Failed to get from peer")
 			}
-			log.Println("[GeeCache] Failed to get from peer")
 		}
+		return g.getLocally(key)
+	})
+	if err == nil {
+		return view.(ByteView), nil
 	}
-	return g.getLocally(key)
+	return
 }
 
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
