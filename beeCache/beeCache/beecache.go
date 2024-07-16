@@ -2,6 +2,7 @@ package beeCache
 
 import (
 	"fmt"
+	pb "github.com/blkcor/beeCache/proto"
 	"github.com/blkcor/beeCache/singleFlight"
 	"log"
 	"sync"
@@ -88,7 +89,7 @@ func (g *Group) load(key string) (value ByteView, err error) {
 				if v, err := g.getFromPeer(peer, key); err == nil {
 					return v, nil
 				}
-				log.Println("[B	eeCache] Failed to get from peer")
+				log.Println("[BeeCache] Failed to get from peer")
 			}
 		}
 		return g.getLocally(key)
@@ -100,11 +101,16 @@ func (g *Group) load(key string) (value ByteView, err error) {
 }
 
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
-	bytes, err := peer.Get(g.name, key)
+	req := &pb.Request{
+		Group: g.name,
+		Key:   key,
+	}
+	res := &pb.Response{}
+	err := peer.Get(req, res)
 	if err != nil {
 		return ByteView{}, err
 	}
-	return ByteView{b: bytes}, nil
+	return ByteView{b: res.Value}, nil
 }
 
 // getLocally get the data from local(in distributed scenes use getFromPeer func)

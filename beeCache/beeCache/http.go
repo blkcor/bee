@@ -3,6 +3,8 @@ package beeCache
 import (
 	"fmt"
 	"github.com/blkcor/beeCache/consistentHash"
+	pb "github.com/blkcor/beeCache/proto"
+	"github.com/golang/protobuf/proto"
 	"io"
 	"net/http"
 	"net/url"
@@ -98,22 +100,26 @@ type httpGetter struct {
 	baseURL string
 }
 
-func (g *httpGetter) Get(group, key string) ([]byte, error) {
+func (g *httpGetter) Get(in *pb.Request, out *pb.Response) error {
 	//对group和key进行编码
-	u := fmt.Sprintf("%v%v/%v", g.baseURL, url.QueryEscape(group), url.QueryEscape(key))
+	u := fmt.Sprintf("%v%v/%v", g.baseURL, url.QueryEscape(in.Group), url.QueryEscape(in.Key))
 	resp, err := http.Get(u)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("server returned: %v", resp.Status)
+		return fmt.Errorf("server returned: %v", resp.Status)
 	}
 	res, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading response body: %v", err)
+		return fmt.Errorf("reading response body: %v", err)
 	}
-	return res, nil
+	if err := proto.Unmarshal(res, out); err != nil {
+		return fmt.Errorf("decoding response body: %v", err)
+
+	}
+	return nil
 }
 
 // 进行编译时的接口实现检查。这行代码本身不会在运行时执行任何操作，它的目的是在编译时确保 httpGetter 类型实现了 PeerGetter 接口
