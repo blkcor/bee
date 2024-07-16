@@ -17,3 +17,15 @@ BeeCache is a mini implement of groupCache.It implements the core features of th
 - [x] Single-machine concurrent cache.
 - [x] Http Server.
 - [x] Consistent hashing algorithm.
+- [x] Distributed cache node.
+- [x] SingleFlight.
+- [x] Use Protobuf in the communication between the node.
+
+# BeeORM
+BeeORM is a mini implement of [xorm](https://xorm.io/)(And learn some code from gorm). It implements the core features of the ORM, including:
+- [ ] Creation, Deletion, Migration of the table. 
+- [ ] Crud operation of the record.
+- [ ] Primary key.
+- [ ] Hooks.
+- [ ] Transaction.
+
