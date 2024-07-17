@@ -24,9 +24,10 @@ BeeCache is a mini implement of groupCache.It implements the core features of th
 # BeeORM
 BeeORM is a mini implement of [xorm](https://xorm.io/)(And learn some code from gorm). It implements the core features of the ORM, including:
 - [x] Logger.
-- [ ] Creation, Deletion, Migration of the table. 
+- [x] Creation, Deletion of the table.
+- [x] Primary key.
+- [ ] Migration of the table.
 - [ ] Crud operation of the record.
-- [ ] Primary key.
 - [ ] Hooks.
 - [ ] Transaction.
 
