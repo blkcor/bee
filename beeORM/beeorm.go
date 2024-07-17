@@ -2,13 +2,15 @@ package beeorm
 
 import (
 	"database/sql"
+	"github.com/blkcor/beeORM/dialect"
 	"github.com/blkcor/beeORM/log"
 	"github.com/blkcor/beeORM/session"
 )
 
 // Engine provider user interaction with the database
 type Engine struct {
-	db *sql.DB
+	db      *sql.DB
+	dialect dialect.Dialect
 }
 
 // NewEngine creates a new database connection
@@ -24,7 +26,12 @@ func NewEngine(driver, dataSource string) (e *Engine, err error) {
 		log.Error(err)
 		return
 	}
-	e = &Engine{db: db}
+	dia, ok := dialect.GetDialect(driver)
+	if !ok {
+		log.Errorf("dialect %s Not Found", driver)
+		return
+	}
+	e = &Engine{db: db, dialect: dia}
 	log.Info("Connect to the database successful!")
 	return
 }
@@ -32,12 +39,12 @@ func NewEngine(driver, dataSource string) (e *Engine, err error) {
 // Close the database connection
 func (e *Engine) Close() {
 	if err := e.db.Close(); err != nil {
-		log.Error("Failed to close database!")
+		log.Error("Failed to close database")
 	}
 	log.Info("Close database successful!")
 }
 
 // NewSession creates a new session for database operations
 func (e *Engine) NewSession() *session.Session {
-	return session.New(e.db)
+	return session.New(e.db, e.dialect)
 }
