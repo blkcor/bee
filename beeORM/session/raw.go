@@ -2,6 +2,7 @@ package session
 
 import (
 	"database/sql"
+	"github.com/blkcor/beeORM/clause"
 	"github.com/blkcor/beeORM/dialect"
 	"github.com/blkcor/beeORM/log"
 	"github.com/blkcor/beeORM/schema"
@@ -15,6 +16,7 @@ type Session struct {
 	refTable *schema.Schema
 	sql      strings.Builder
 	sqlVars  []interface{}
+	clause   clause.Clause
 }
 
 // New return a instance of Session struct
@@ -29,6 +31,7 @@ func New(db *sql.DB, dialect dialect.Dialect) *Session {
 func (s *Session) clear() {
 	s.sql.Reset()
 	s.sqlVars = nil
+	s.clause = clause.Clause{}
 }
 
 // DB return the sql.DB instance
