@@ -27,7 +27,7 @@ BeeORM is a mini implement of [xorm](https://xorm.io/)(And learn some code from 
 - [x] Creation, Deletion of the table.
 - [x] Primary key.
 - [x] Crud operation of the record.
+- [x] Hooks.
 - [ ] Migration of the table.
-- [ ] Hooks.
 - [ ] Transaction.
 
