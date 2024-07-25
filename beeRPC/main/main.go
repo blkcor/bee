@@ -1,12 +1,12 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/blkcor/beeRPC"
-	"github.com/blkcor/beeRPC/codec"
+	"github.com/blkcor/beeRPC/client"
+	"github.com/blkcor/beeRPC/server"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -18,32 +18,30 @@ func startServer(addr chan string) {
 	}
 	log.Println("start rpc server on", l.Addr())
 	addr <- l.Addr().String()
-	beeRPC.Accept(l)
+	server.Accept(l)
 }
 
 func main() {
+	log.SetFlags(0)
 	addr := make(chan string)
 	go startServer(addr)
+	c, _ := client.Dial("tcp", <-addr)
+	defer func() { _ = c.Close() }()
 
-	// in fact, following code is like a simple beerpc client
-	conn, _ := net.Dial("tcp", <-addr)
-	defer func() { _ = conn.Close() }()
-
-	//等待服务器准备好
 	time.Sleep(time.Second)
-	// send options
-	_ = json.NewEncoder(conn).Encode(beeRPC.DefaultOption)
-	cc := codec.NewGobCodec(conn)
 	// send request & receive response
+	var wg sync.WaitGroup
 	for i := 0; i < 5; i++ {
-		h := &codec.Header{
-			ServiceMethod: "Foo.Sum",
-			Seq:           uint64(i),
-		}
-		_ = cc.Write(h, fmt.Sprintf("beerpc req %d", h.Seq))
-		_ = cc.ReadHeader(h)
-		var reply string
-		_ = cc.ReadBody(&reply)
-		log.Println("reply:", reply)
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			args := fmt.Sprintf("beerpc req %d", i)
+			var reply string
+			if err := c.Call("Foo.Sum", args, &reply); err != nil {
+				log.Fatal("call Foo.Sum error:", err)
+			}
+			log.Println("reply:", reply)
+		}(i)
 	}
+	wg.Wait()
 }

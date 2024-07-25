@@ -1,4 +1,4 @@
-package beeRPC
+package server
 
 import (
 	"encoding/json"
