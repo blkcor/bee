@@ -3,12 +3,13 @@ package server
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/blkcor/beeRPC/codec"
+	"github.com/blkcor/beeRPC/service"
 	"io"
 	"log"
 	"net"
 	"reflect"
+	"strings"
 	"sync"
 )
 
@@ -25,7 +26,9 @@ var DefaultOption = &Option{
 }
 
 // Server represents an RPC Server
-type Server struct{}
+type Server struct {
+	serviceMap sync.Map
+}
 
 // NewServer returns a new Server
 func NewServer() *Server {
@@ -97,10 +100,46 @@ func (srv *Server) serveCodec(cc codec.Codec) {
 	_ = cc.Close()
 }
 
+// Register publishes in the server the set of methods of the
+func (srv *Server) Register(rcvr interface{}) error {
+	s := service.NewService(rcvr)
+	if _, dup := srv.serviceMap.LoadOrStore(s.Name, s); dup {
+		return errors.New("rpc: service already defined: " + s.Name)
+	}
+	return nil
+}
+
+func (srv *Server) findService(serviceMethod string) (svc *service.Service, mtype *service.MethodType, err error) {
+	dot := strings.LastIndex(serviceMethod, ".")
+	if dot < 0 {
+		err = errors.New("rpc server: service/method request ill-formed: " + serviceMethod)
+		return
+	}
+	serviceName, methodName := serviceMethod[:dot], serviceMethod[dot+1:]
+	svci, ok := srv.serviceMap.Load(serviceName)
+	if !ok {
+		err = errors.New("rpc server: can't find service " + serviceName)
+		return
+	}
+	svc = svci.(*service.Service)
+	mtype = svc.Method[methodName]
+	if mtype == nil {
+		err = errors.New("rpc server: can't find method " + methodName)
+	}
+	return
+}
+
+// Register publishes the receiver's methods in the DefaultServer.
+func Register(rcvr interface{}) error {
+	return DefaultServer.Register(rcvr)
+}
+
 // request store the request information
 type request struct {
 	h            *codec.Header // header of request
 	argv, replyv reflect.Value // argv and replyv of request
+	mtype        *service.MethodType
+	svc          *service.Service
 }
 
 // readRequest reads a single request
@@ -110,11 +149,19 @@ func (srv *Server) readRequest(cc codec.Codec) (*request, error) {
 		return nil, err
 	}
 	req := &request{h: header}
-	// TODO: now we don't know the type of request argv, just suppose it's string now
-	req.argv = reflect.New(reflect.TypeOf(""))
-
-	if err := cc.ReadBody(req.argv.Interface()); err != nil {
+	req.svc, req.mtype, err = srv.findService(header.ServiceMethod)
+	if err != nil {
+		return req, err
+	}
+	req.argv = req.mtype.NewArgv()
+	req.replyv = req.mtype.NewReplyv()
+	argvi := req.argv.Interface()
+	if req.argv.Type().Kind() != reflect.Ptr {
+		argvi = req.argv.Addr().Interface()
+	}
+	if err := cc.ReadBody(argvi); err != nil {
 		log.Println("rpc server: read argv err:", err)
+		return req, err
 	}
 	return req, nil
 }
@@ -130,10 +177,13 @@ func (srv *Server) sendResponse(cc codec.Codec, header *codec.Header, body inter
 
 // handleRequest handles a single request
 func (srv *Server) handleRequest(cc codec.Codec, req *request, sending *sync.Mutex, wg *sync.WaitGroup) {
-	// TODO, should call registered rpc methods to get the right replyv, just print argv and send a hello message
 	defer wg.Done()
-	log.Println(req.h, req.argv.Elem())
-	req.replyv = reflect.ValueOf(fmt.Sprintf("beerpc resp %d", req.h.Seq))
+	err := req.svc.Call(req.mtype, req.argv, req.replyv)
+	if err != nil {
+		req.h.Err = err.Error()
+		srv.sendResponse(cc, req.h, invalidRequest, sending)
+		return
+	}
 	srv.sendResponse(cc, req.h, req.replyv.Interface(), sending)
 }
 

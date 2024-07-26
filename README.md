@@ -34,7 +34,7 @@ BeeORM is a mini implement of [xorm](https://xorm.io/)(And learn some code from 
 # BeeRPC
 BeeRPC is a mini implement of rpc library of std lib `net/rpc`. It implements the core features of the RPC, including:
 - [x] Protocol Exchange.
-- [ ] Registry.
+- [x] Registry.
 - [ ] Service Discovery.
 - [ ] Load Balance.
 - [ ] Timeout Processing.
