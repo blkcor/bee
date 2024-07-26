@@ -40,9 +40,9 @@ func TestMethodType_Call(t *testing.T) {
 	s := NewService(&foo)
 	mType := s.Method["Sum"]
 
-	argv := mType.newArgv()
-	replyv := mType.newReplyv()
+	argv := mType.NewArgv()
+	replyv := mType.NewReplyv()
 	argv.Set(reflect.ValueOf(Args{Num1: 1, Num2: 3}))
-	err := s.call(mType, argv, replyv)
+	err := s.Call(mType, argv, replyv)
 	_assert(err == nil && *replyv.Interface().(*int) == 4 && mType.NumCalls() == 1, "failed to call Foo.Sum")
 }
