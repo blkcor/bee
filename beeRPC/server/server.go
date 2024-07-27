@@ -170,6 +170,7 @@ func (srv *Server) readRequest(cc codec.Codec) (*request, error) {
 func (srv *Server) sendResponse(cc codec.Codec, header *codec.Header, body interface{}, sending *sync.Mutex) {
 	sending.Lock()
 	defer sending.Unlock()
+	// 请求和响应共用一个header
 	if err := cc.Write(header, body); err != nil {
 		log.Println("rpc server: write response error:", err)
 	}
