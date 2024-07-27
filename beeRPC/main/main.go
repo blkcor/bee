@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"github.com/blkcor/beeRPC/client"
 	"github.com/blkcor/beeRPC/server"
 	"log"
@@ -47,9 +48,11 @@ func main() {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
+			//用带有超时时间的上下文来处理
+			ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
 			args := &Args{Num1: i, Num2: i * i}
 			var reply int
-			if err := c.Call("Foo.Sum", args, &reply); err != nil {
+			if err := c.Call(ctx, "Foo.Sum", args, &reply); err != nil {
 				log.Fatal("call Foo.Sum error:", err)
 			}
 			log.Printf("%d + %d = %d", args.Num1, args.Num2, reply)

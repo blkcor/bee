@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 // Call represents an active RPC.
@@ -178,13 +180,20 @@ func parseOptions(opts ...*server.Option) (*server.Option, error) {
 	return opt, nil
 }
 
-// Dial connects to an RPC server at the specified network address.
-func Dial(network, address string, opts ...*server.Option) (client *Client, err error) {
+type clientResult struct {
+	client *Client
+	err    error
+}
+
+type newClientFunc func(conn net.Conn, opt *server.Option) (client *Client, err error)
+
+// dialTimeout makes a new Client and dials the server at the specified network address.
+func dialTimeout(f newClientFunc, network, address string, opts ...*server.Option) (client *Client, err error) {
 	option, err := parseOptions(opts...)
 	if err != nil {
 		return nil, err
 	}
-	conn, err := net.Dial(network, address)
+	conn, err := net.DialTimeout(network, address, option.ConnectTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +202,29 @@ func Dial(network, address string, opts ...*server.Option) (client *Client, err 
 			_ = conn.Close()
 		}
 	}()
-	return NewClient(conn, option)
+	ch := make(chan clientResult)
+	go func() {
+		//连接服务端
+		client, err := f(conn, option)
+		ch <- clientResult{client: client, err: err}
+	}()
+	if option.ConnectTimeout == 0 {
+		//如果无超时限制，直接等待
+		result := <-ch
+		return result.client, result.err
+	}
+	select {
+	//如果超时了
+	case <-time.After(option.ConnectTimeout):
+		return nil, errors.New("rpc client: connect timeout, expected within " + option.ConnectTimeout.String())
+	case result := <-ch:
+		return result.client, result.err
+	}
+}
+
+// Dial connects to an RPC server at the specified network address.
+func Dial(network, address string, opts ...*server.Option) (client *Client, err error) {
+	return dialTimeout(NewClient, network, address, opts...)
 }
 
 func (client *Client) send(call *Call) {
@@ -243,7 +274,15 @@ func (client *Client) Go(serviceMethod string, args, reply interface{}, done cha
 
 // Call invokes the named function, waits for it to complete,
 // and returns its error status.
-func (client *Client) Call(serviceMethod string, args, reply interface{}) error {
-	call := <-client.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done
-	return call.Error
+func (client *Client) Call(ctx context.Context, serviceMethod string, args, reply interface{}) error {
+	call := client.Go(serviceMethod, args, reply, make(chan *Call, 1))
+	select {
+	// client call timeout
+	case <-ctx.Done():
+		client.removeCall(call.Seq)
+		return errors.New("rpc client: call failed: " + ctx.Err().Error())
+	// client call done(fail or success)
+	case c := <-call.Done:
+		return c.Error
+	}
 }

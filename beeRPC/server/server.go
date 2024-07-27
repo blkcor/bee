@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/blkcor/beeRPC/codec"
 	"github.com/blkcor/beeRPC/service"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 )
 
 const MagicNumber = 0x3bef5c
@@ -18,11 +20,17 @@ const MagicNumber = 0x3bef5c
 type Option struct {
 	MagicNumber int        // MagicNumber marks this is a beeRPC request
 	CodecType   codec.Type // Client may choose different Codec to encode body(CodecType)
+	//超时处理
+	//1、客户端建立连接时 2、客户端 Client.Call() 整个过程导致的超时（包含发送报文，等待处理，接收报文所有阶段）
+	//3、服务端处理报文，即 Server.handleRequest 超时。
+	ConnectTimeout time.Duration
+	HandleTimeout  time.Duration
 }
 
 var DefaultOption = &Option{
-	MagicNumber: MagicNumber,
-	CodecType:   codec.GobType,
+	MagicNumber:    MagicNumber,
+	CodecType:      codec.GobType,
+	ConnectTimeout: time.Second * 10,
 }
 
 // Server represents an RPC Server
@@ -72,13 +80,13 @@ func (srv *Server) ServerConn(conn net.Conn) {
 		log.Printf("rpc server: invalid codec type %s", option.CodecType)
 		return
 	}
-	srv.serveCodec(f(conn))
+	srv.serveCodec(f(conn), option.HandleTimeout)
 }
 
 // invalidRequest is a placeholder for response argv when error occurs
 var invalidRequest = struct{}{}
 
-func (srv *Server) serveCodec(cc codec.Codec) {
+func (srv *Server) serveCodec(cc codec.Codec, handleTimeout time.Duration) {
 	sending := new(sync.Mutex) //make sure to send a complete response
 	wg := new(sync.WaitGroup)  //wait until all request are handled
 	for {
@@ -93,7 +101,7 @@ func (srv *Server) serveCodec(cc codec.Codec) {
 			continue
 		}
 		wg.Add(1)
-		go srv.handleRequest(cc, req, sending, wg)
+		go srv.handleRequest(cc, req, sending, wg, handleTimeout)
 	}
 	//等待所有的请求处理完毕
 	wg.Wait()
@@ -177,15 +185,36 @@ func (srv *Server) sendResponse(cc codec.Codec, header *codec.Header, body inter
 }
 
 // handleRequest handles a single request
-func (srv *Server) handleRequest(cc codec.Codec, req *request, sending *sync.Mutex, wg *sync.WaitGroup) {
+func (srv *Server) handleRequest(cc codec.Codec, req *request, sending *sync.Mutex, wg *sync.WaitGroup, timeout time.Duration) {
 	defer wg.Done()
-	err := req.svc.Call(req.mtype, req.argv, req.replyv)
-	if err != nil {
-		req.h.Err = err.Error()
-		srv.sendResponse(cc, req.h, invalidRequest, sending)
+	called := make(chan struct{})
+	sent := make(chan struct{})
+	go func() {
+		err := req.svc.Call(req.mtype, req.argv, req.replyv)
+		called <- struct{}{}
+		if err != nil {
+			req.h.Err = err.Error()
+			srv.sendResponse(cc, req.h, invalidRequest, sending)
+			sent <- struct{}{}
+			return
+		}
+		srv.sendResponse(cc, req.h, req.replyv.Interface(), sending)
+		sent <- struct{}{}
+	}()
+	//没有限制超时时间
+	if timeout == 0 {
+		<-called
+		<-sent
 		return
 	}
-	srv.sendResponse(cc, req.h, req.replyv.Interface(), sending)
+
+	select {
+	case <-time.After(timeout):
+		req.h.Err = fmt.Sprintf("rpc server: request handle timeout: expect within %s", timeout)
+		srv.sendResponse(cc, req.h, invalidRequest, sending)
+	case <-called:
+		<-sent
+	}
 }
 
 // readRequestHeader reads a request header
