@@ -39,3 +39,5 @@ BeeRPC is a mini implement of rpc library of std lib `net/rpc`. It implements th
 - [x] Service Discovery.
 - [x] Load Balance.
 - [ ] More Features.
+
+`updating and perfecting...`
