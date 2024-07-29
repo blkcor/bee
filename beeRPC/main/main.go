@@ -6,23 +6,33 @@ import (
 	"github.com/blkcor/beeRPC/server"
 	"log"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 )
 
-func startServer(addr chan string) {
+//func startServer(addr chan string) {
+//	var foo Foo
+//	if err := server.Register(&foo); err != nil {
+//		log.Fatal("register error:", err)
+//	}
+//	// pick a free port
+//	l, err := net.Listen("tcp", ":0")
+//	if err != nil {
+//		log.Fatal("network error:", err)
+//	}
+//	log.Println("start rpc server on", l.Addr())
+//	addr <- l.Addr().String()
+//	server.Accept(l)
+//}
+
+func startServer(addrCh chan string) {
 	var foo Foo
-	if err := server.Register(&foo); err != nil {
-		log.Fatal("register error:", err)
-	}
-	// pick a free port
-	l, err := net.Listen("tcp", ":0")
-	if err != nil {
-		log.Fatal("network error:", err)
-	}
-	log.Println("start rpc server on", l.Addr())
-	addr <- l.Addr().String()
-	server.Accept(l)
+	l, _ := net.Listen("tcp", ":9999")
+	_ = server.Register(&foo)
+	server.HandleHTTP()
+	addrCh <- l.Addr().String()
+	_ = http.Serve(l, nil)
 }
 
 type Foo int
@@ -34,11 +44,8 @@ func (f Foo) Sum(args Args, reply *int) error {
 	return nil
 }
 
-func main() {
-	log.SetFlags(0)
-	addr := make(chan string)
-	go startServer(addr)
-	c, _ := client.Dial("tcp", <-addr)
+func call(addrCh chan string) {
+	c, _ := client.DialHTTP("tcp", <-addrCh)
 	defer func() { _ = c.Close() }()
 
 	time.Sleep(time.Second)
@@ -48,15 +55,20 @@ func main() {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			//用带有超时时间的上下文来处理
-			ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
 			args := &Args{Num1: i, Num2: i * i}
 			var reply int
-			if err := c.Call(ctx, "Foo.Sum", args, &reply); err != nil {
+			if err := c.Call(context.Background(), "Foo.Sum", args, &reply); err != nil {
 				log.Fatal("call Foo.Sum error:", err)
 			}
 			log.Printf("%d + %d = %d", args.Num1, args.Num2, reply)
 		}(i)
 	}
 	wg.Wait()
+}
+
+func main() {
+	log.SetFlags(0)
+	ch := make(chan string)
+	go call(ch)
+	startServer(ch)
 }

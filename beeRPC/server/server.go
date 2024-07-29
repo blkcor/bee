@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"github.com/blkcor/beeRPC/codec"
 	"github.com/blkcor/beeRPC/service"
+	"html/template"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
@@ -16,6 +18,12 @@ import (
 )
 
 const MagicNumber = 0x3bef5c
+
+const (
+	Connected        = "200 Connected to Bee RPC"
+	DefaultRPCPath   = "/_beerpc_"
+	DefaultDebugPath = "/debug/beerpc"
+)
 
 type Option struct {
 	MagicNumber int        // MagicNumber marks this is a beeRPC request
@@ -35,12 +43,42 @@ var DefaultOption = &Option{
 
 // Server represents an RPC Server
 type Server struct {
-	serviceMap sync.Map
+	ServiceMap sync.Map
 }
 
 // NewServer returns a new Server
 func NewServer() *Server {
 	return &Server{}
+}
+
+// ServeHTTP implements a http.Handler that answers RPC requests.
+func (srv *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method != "CONNECT" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_, _ = io.WriteString(w, "405 must CONNECT\n")
+		return
+	}
+	// 取出http连接中的tcp连接
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		log.Print("rpc hijacking ", req.RemoteAddr, ": ", err.Error())
+		return
+	}
+	_, _ = io.WriteString(conn, "HTTP/1.0 "+Connected+"\n\n")
+	//后续connection的处理当成rpc去处理，完成http => rpc 的转换
+	srv.ServerConn(conn)
+}
+
+func (srv *Server) HandleHTTP() {
+	http.Handle(DefaultRPCPath, srv)
+	http.Handle(DefaultDebugPath, DebugHTTP{srv})
+	log.Println("rpc server debug path:", DefaultDebugPath)
+}
+
+// HandleHTTP is a convenient approach for default server to register HTTP handlers
+func HandleHTTP() {
+	DefaultServer.HandleHTTP()
 }
 
 // DefaultServer is the default instance of *Server
@@ -111,7 +149,7 @@ func (srv *Server) serveCodec(cc codec.Codec, handleTimeout time.Duration) {
 // Register publishes in the server the set of methods of the
 func (srv *Server) Register(rcvr interface{}) error {
 	s := service.NewService(rcvr)
-	if _, dup := srv.serviceMap.LoadOrStore(s.Name, s); dup {
+	if _, dup := srv.ServiceMap.LoadOrStore(s.Name, s); dup {
 		return errors.New("rpc: service already defined: " + s.Name)
 	}
 	return nil
@@ -124,7 +162,7 @@ func (srv *Server) findService(serviceMethod string) (svc *service.Service, mtyp
 		return
 	}
 	serviceName, methodName := serviceMethod[:dot], serviceMethod[dot+1:]
-	svci, ok := srv.serviceMap.Load(serviceName)
+	svci, ok := srv.ServiceMap.Load(serviceName)
 	if !ok {
 		err = errors.New("rpc server: can't find service " + serviceName)
 		return
@@ -231,4 +269,53 @@ func (srv *Server) readRequestHeader(cc codec.Codec) (*codec.Header, error) {
 
 func Accept(lis net.Listener) {
 	DefaultServer.Accept(lis)
+}
+
+const debugText = `<html>
+	<body>
+	<title>BeeRPC Services</title>
+	{{range .}}
+	<hr>
+	Service {{.Name}}
+	<hr>
+		<table>
+		<th align=center>Method</th><th align=center>Calls</th>
+		{{range $name, $mtype := .Method}}
+			<tr>
+			<td align=left font=fixed>{{$name}}({{$mtype.ArgType}}, {{$mtype.ReplyType}}) error</td>
+			<td align=center>{{$mtype.NumCalls}}</td>
+			</tr>
+		{{end}}
+		</table>
+	{{end}}
+	</body>
+	</html>`
+
+var debug = template.Must(template.New("RPC debug").Parse(debugText))
+
+type DebugHTTP struct {
+	*Server
+}
+
+type DebugService struct {
+	Name   string
+	Method map[string]*service.MethodType
+}
+
+// Runs at /debug/geerpc
+func (server DebugHTTP) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// Build a sorted version of the data.
+	var services []DebugService
+	server.ServiceMap.Range(func(namei, svci interface{}) bool {
+		svc := svci.(*service.Service)
+		services = append(services, DebugService{
+			Name:   namei.(string),
+			Method: svc.Method,
+		})
+		return true
+	})
+	err := debug.Execute(w, services)
+	if err != nil {
+		_, _ = fmt.Fprintln(w, "rpc: error executing template:", err.Error())
+	}
 }
